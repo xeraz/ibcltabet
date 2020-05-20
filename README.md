@@ -1,6 +1,6 @@
 This is a simple bot to Delete User Messages based on Groupmembers Votes.
 
-##install
+# install
 
 copy sampleconfig.ini into config.ini and insert bot Token
 
