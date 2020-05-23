@@ -36,6 +36,9 @@ class ibCleanerBot:
 
     @run_async
     def askdelete(self, update, context):
+        if not update.message.reply_to_message:
+            return
+        update.message.delete()
         del_msg_id = update.message.reply_to_message.message_id
         del_msg_name = update.message.reply_to_message.from_user.first_name
         original_member = context.bot.get_chat_member(update.effective_chat.id,
