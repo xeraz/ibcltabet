@@ -1,22 +1,18 @@
-from telegram.ext import Updater
 import configparser
 import os
-from telegram.ext import CommandHandler
-from telegram.ext import MessageHandler, Filters, CallbackQueryHandler
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup
-from telegram import InlineKeyboardButton, Poll, ParseMode
-from telegram.ext import  PollAnswerHandler, PollHandler
+import logging
+
+from telegram.ext import Updater, CommandHandler, MessageHandler, run_async
+from telegram.ext import  Filters, CallbackQueryHandler, PollAnswerHandler, PollHandler
+from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, Poll, ParseMode 
 from telegram.utils.helpers import mention_html
 from translation import Translation
 
-import logging
 
 class ibCleanerBot:
     def __init__(self, configfile):
         self.config = configparser.ConfigParser()
         self.config.read(configfile)
-        # del_msg = {delete_msg_id:del_msg_id}
-        self.del_msg = {}
 
     def initialize_bot(self):
         updater = Updater(token=self.config['KEYS']['bot_api'], use_context=True)
@@ -34,65 +30,51 @@ class ibCleanerBot:
 
         updater.start_polling()
 
+    @run_async
     def start(self, update, context):
         context.bot.send_message(chat_id=update.effective_chat.id, text=Translation.BOT_WELCOME)
 
+    @run_async
     def askdelete(self, update, context):
         del_msg_id = update.message.reply_to_message.message_id
-        del_msg_username = update.message.message_id
-        self.del_msg["delete_msg_id"] = del_msg_id
-        self.del_msg["delete_msg_username"] = del_msg_username
         del_msg_name = update.message.reply_to_message.from_user.first_name
-        print (del_msg_name)
         questions = [Translation.YES, Translation.NO]
-        message = context.bot.sendPoll(update.effective_chat.id, Translation.QUESTION_STRING.format(del_msg_name), questions,
-                                    is_anonymous=False, type='regular', allows_multiple_answers=False, reply_to_message_id=del_msg_id)
-        payload = {message.poll.id: {"questions": questions, "message_id": message.message_id,
-                                 "chat_id": update.effective_chat.id, "answers": 0}}
-        context.bot_data.update(payload)
-              
+        message = context.bot.sendPoll(update.effective_chat.id,
+                                       Translation.QUESTION_STRING.format(del_msg_name),
+                                       questions,
+                                       is_anonymous=False,
+                                       type='regular',
+                                       allows_multiple_answers=False,
+                                       reply_to_message_id=del_msg_id)
+
+        context.bot_data[message.poll.id] = {}
+        context.bot_data[message.poll.id]['count'] = 0
+        context.bot_data[message.poll.id]['msg_to_delete'] = del_msg_id
+        context.bot_data[message.poll.id]['chat'] = update.effective_chat.id
+        context.bot_data[message.poll.id]['message_id'] = message.message_id
+
+    @run_async
     def receive_poll_answer(self, update, context):
         """Summarize a users poll vote"""
         answer = update.poll_answer
         print(answer)
         poll_id = answer.poll_id
-        try:
-            questions = context.bot_data[poll_id]["questions"]
-    # this means this poll answer update is from an old poll, we can't do our answering then
-        except KeyError:
-            return
         selected_options = answer.option_ids
         
         if selected_options[0] == 0:
-            context.bot_data[poll_id]["answers"] += 1
+            context.bot_data[poll_id]['count'] += 1
 
         # Close poll after three participants voted
-        if context.bot_data[poll_id]["answers"] == Translation.TOTAL_VOTE_COUNT:       
-            context.bot.stop_poll(context.bot_data[poll_id]["chat_id"],
-                                   context.bot_data[poll_id]["message_id"])
-            
-    
-    def delete(self, update, context):
-        
-        #print ("poll options", update.poll.options[0].voter_count)  
-        if update.poll.options[0].voter_count == Translation.TOTAL_VOTE_COUNT:
-            try:
-                quiz_data = context.bot_data[update.poll.id]
-                print ("quiz data is", quiz_data)
-                
-        # this means this poll answer update is from an old poll, we can't stop it then
-            except KeyError:
-                print(update.poll.id)
-                print("Test Keyerror")
-                return
-            
-            #context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
-            print("chat id is", quiz_data["chat_id"])
-            print ("message id is ", self.del_msg["delete_msg_id"])
-            context.bot.delete_message(chat_id=quiz_data["chat_id"], message_id=self.del_msg["delete_msg_id"])
-            context.bot.delete_message(chat_id=quiz_data["chat_id"], message_id=self.del_msg["delete_msg_username"])
-            
+        if context.bot_data[poll_id]['count'] == Translation.TOTAL_VOTE_COUNT:
+            context.bot.stop_poll(context.bot_data[poll_id]['chat'],
+                                  context.bot_data[poll_id]['message_id'])
 
+    @run_async
+    def delete(self, update, context): 
+        if update.poll.options[0].voter_count == Translation.TOTAL_VOTE_COUNT:
+            context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
+                                       message_id=context.bot_data[update.poll.id]['msg_to_delete'])
+            
         if update.poll.is_closed:
             print ("test closed")
             return    
