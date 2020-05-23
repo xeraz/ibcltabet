@@ -26,7 +26,7 @@ class ibCleanerBot:
         dispatcher.add_handler(start_handler)
         askdelete_handler = MessageHandler(Filters.regex('@ibcleanerbot'), self.askdelete)
         dispatcher.add_handler(askdelete_handler)
-        updater.dispatcher.add_handler(CallbackQueryHandler(self.delete, pattern='^'+str(1)+'$'))
+        #updater.dispatcher.add_handler(CallbackQueryHandler(self.delete, pattern='^'+str(1)+'$'))
         #updater.dispatcher.add_handler(CommandHandler('set', self.delete))
         dispatcher.add_handler(PollAnswerHandler(self.receive_poll_answer))
         dispatcher.add_handler(PollHandler(self.delete))  
@@ -66,6 +66,7 @@ class ibCleanerBot:
         except KeyError:
             return
         selected_options = answer.option_ids
+        print ("selected options -1", selected_options)
         answer_string = ""
         for question_id in selected_options:
             if question_id != selected_options[-1]:
@@ -76,9 +77,11 @@ class ibCleanerBot:
         context.bot.send_message(context.bot_data[poll_id]["chat_id"],
                                  "{} feels {}!".format(user_mention, answer_string),
                                  parse_mode=ParseMode.HTML)
-        context.bot_data[poll_id]["answers"] += 1
+        if selected_options[0] == 0:
+            context.bot_data[poll_id]["answers"] += 1
+
         # Close poll after three participants voted
-        if context.bot_data[poll_id]["answers"] == 2:
+        if context.bot_data[poll_id]["answers"] == 3:
             context.bot.stop_poll(context.bot_data[poll_id]["chat_id"],
                                   context.bot_data[poll_id]["message_id"])
     
@@ -87,17 +90,19 @@ class ibCleanerBot:
         if update.poll.is_closed:
             print ("test closed")
             return
-        if update.poll.total_voter_count == 2:
+
+        #print ("poll options", update.poll.options[0].voter_count)  
+        if update.poll.options[0].voter_count == 3:
             try:
                 quiz_data = context.bot_data[update.poll.id]
-                print ("testttt")
+                print ("quiz data is", quiz_data)
                 
         # this means this poll answer update is from an old poll, we can't stop it then
             except KeyError:
                 print(update.poll.id)
                 print("Test Keyerror")
                 return
-            print (quiz_data)
+            
             #context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
             context.bot.delete_message(chat_id=quiz_data["chat_id"], message_id=self.del_msg["delete_msg_id"])
 
