@@ -38,6 +38,11 @@ class ibCleanerBot:
     def askdelete(self, update, context):
         del_msg_id = update.message.reply_to_message.message_id
         del_msg_name = update.message.reply_to_message.from_user.first_name
+        original_member = context.bot.get_chat_member(update.effective_chat.id,
+                                                 update.message.reply_to_message.from_user.id)
+        if original_member['status'] in ('creator', 'administrator'):
+            return
+
         questions = [Translation.YES, Translation.NO]
         message = context.bot.sendPoll(update.effective_chat.id,
                                        Translation.QUESTION_STRING.format(del_msg_name),
