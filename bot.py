@@ -81,7 +81,7 @@ class ibCleanerBot:
             context.bot_data[poll_id]["answers"] += 1
 
         # Close poll after three participants voted
-        if context.bot_data[poll_id]["answers"] == 3:
+        if context.bot_data[poll_id]["answers"] == 2:
             context.bot.stop_poll(context.bot_data[poll_id]["chat_id"],
                                   context.bot_data[poll_id]["message_id"])
     
@@ -92,7 +92,7 @@ class ibCleanerBot:
             return
 
         #print ("poll options", update.poll.options[0].voter_count)  
-        if update.poll.options[0].voter_count == 3:
+        if update.poll.options[0].voter_count == 2:
             try:
                 quiz_data = context.bot_data[update.poll.id]
                 print ("quiz data is", quiz_data)
@@ -104,6 +104,8 @@ class ibCleanerBot:
                 return
             
             #context.bot.stop_poll(quiz_data["chat_id"], quiz_data["message_id"])
+            print("chat id is", quiz_data["chat_id"])
+            print ("message id is ", self.del_msg["delete_msg_id"])
             context.bot.delete_message(chat_id=quiz_data["chat_id"], message_id=self.del_msg["delete_msg_id"])
 
         # answers = update.poll.options
