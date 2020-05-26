@@ -21,13 +21,10 @@ class ibCleanerBot:
                              level=logging.INFO)
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
-        askdelete_handler = MessageHandler(Filters.regex('@ibcleanerbot'), self.askdelete)
+        askdelete_handler = MessageHandler(Filters.regex('@' + updater.bot.username), self.askdelete)
         dispatcher.add_handler(askdelete_handler)
-        #updater.dispatcher.add_handler(CallbackQueryHandler(self.delete, pattern='^'+str(1)+'$'))
-        #updater.dispatcher.add_handler(CommandHandler('set', self.delete))
         dispatcher.add_handler(PollAnswerHandler(self.receive_poll_answer))
-        dispatcher.add_handler(PollHandler(self.delete))  
-
+        dispatcher.add_handler(PollHandler(self.delete))
         updater.start_polling()
 
     @run_async
