@@ -21,8 +21,10 @@ class ibCleanerBot:
                              level=logging.INFO)
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
-        askdelete_handler = MessageHandler(Filters.regex('@' + updater.bot.username), self.askdelete)
+        askdelete_handler = MessageHandler(Filters.regex('^' + updater.bot.username + '$'), self.askdelete)
+        askdelete_ban_handler = MessageHandler(Filters.regex('^@' + updater.bot.username + ' ban$'), self.askdelete_ban)
         dispatcher.add_handler(askdelete_handler)
+        dispatcher.add_handler(askdelete_ban_handler)
         dispatcher.add_handler(PollAnswerHandler(self.receive_poll_answer))
         dispatcher.add_handler(PollHandler(self.delete))
         updater.start_polling()
@@ -33,9 +35,17 @@ class ibCleanerBot:
 
     @run_async
     def askdelete(self, update, context):
+        self.ask_func(update, context)
+
+    @run_async
+    def askdelete_ban(self, update, context):
+        self.ask_func(update, context, ban=True)
+
+    def ask_func(self, update, context, ban=False):
         if not update.message.reply_to_message:
             return
         update.message.delete()
+        
         del_msg_id = update.message.reply_to_message.message_id
         del_msg_name = update.message.reply_to_message.from_user.first_name
         original_member = context.bot.get_chat_member(update.effective_chat.id,
@@ -57,6 +67,8 @@ class ibCleanerBot:
         context.bot_data[message.poll.id]['msg_to_delete'] = del_msg_id
         context.bot_data[message.poll.id]['chat'] = update.effective_chat.id
         context.bot_data[message.poll.id]['message_id'] = message.message_id
+        context.bot_data[message.poll.id]['sender_id'] = original_member.user.id
+        context.bot_data[message.poll.id]['ban'] = ban
 
     @run_async
     def receive_poll_answer(self, update, context):
@@ -79,7 +91,10 @@ class ibCleanerBot:
         if update.poll.options[0].voter_count == Translation.TOTAL_VOTE_COUNT:
             context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
                                        message_id=context.bot_data[update.poll.id]['msg_to_delete'])
-            
+            print(context.bot_data)
+            if context.bot_data[update.poll.id]['ban']:
+                context.bot.kick_chat_member(chat_id=context.bot_data[update.poll.id]['chat'],
+                                             user_id=context.bot_data[update.poll.id]['sender_id'])
         if update.poll.is_closed:
             print ("test closed")
             return    
