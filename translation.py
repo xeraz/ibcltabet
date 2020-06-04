@@ -5,5 +5,6 @@ class Translation(object):
     NO = "വേണ്ട"
     # This is the question string ask by bot to delete Message
     QUESTION_STRING = "{} ന്റെ ഈ മെസേജ് കളയട്ടേ ?"
+    QUESTION_STRING_BAN = "{} ന്റെ ഈ മെസേജ് കളയട്ടേ ?"
     # Number of Votes To Delete a Message
     TOTAL_VOTE_COUNT = 3
