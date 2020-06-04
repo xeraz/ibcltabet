@@ -21,7 +21,7 @@ class ibCleanerBot:
                              level=logging.INFO)
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
-        askdelete_handler = MessageHandler(Filters.regex('^' + updater.bot.username + '$'), self.askdelete)
+        askdelete_handler = MessageHandler(Filters.regex('^@' + updater.bot.username + '$'), self.askdelete)
         askdelete_ban_handler = MessageHandler(Filters.regex('^@' + updater.bot.username + ' ban$'), self.askdelete_ban)
         dispatcher.add_handler(askdelete_handler)
         dispatcher.add_handler(askdelete_ban_handler)
@@ -53,9 +53,13 @@ class ibCleanerBot:
         if original_member['status'] in ('creator', 'administrator'):
             return
 
+        question_string = Translation.QUESTION_STRING
+        if ban:
+            question_string = Translation.QUESTION_STRING_BAN
+
         questions = [Translation.YES, Translation.NO]
         message = context.bot.sendPoll(update.effective_chat.id,
-                                       Translation.QUESTION_STRING.format(del_msg_name),
+                                       question_string.format(del_msg_name),
                                        questions,
                                        is_anonymous=False,
                                        type='regular',
