@@ -11,11 +11,14 @@ from translation import Translation
 
 class ibCleanerBot:
     def __init__(self, configfile):
-        self.config = configparser.ConfigParser()
-        self.config.read(configfile)
+        config = configparser.ConfigParser()
+        config.read(configfile)
+        self.DEFAULT_VOTE_COUNT = int(config['PARAMS']['DEFAULT_VOTE_COUNT'])
+        self.DEFAULT_DELETE_TIMEOUT = int(config['PARAMS']['DEFAULT_DELETE_TIMEOUT'])
+        self.TOKEN = config['KEYS']['BOT_API']
 
     def initialize_bot(self):
-        updater = Updater(token=self.config['KEYS']['bot_api'], use_context=True)
+        updater = Updater(token=self.TOKEN, use_context=True)
         dispatcher = updater.dispatcher
         logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                              level=logging.INFO)
@@ -77,11 +80,14 @@ class ibCleanerBot:
         context.bot_data[message.poll.id]['sender_id'] = original_member.user.id
         context.bot_data[message.poll.id]['ban'] = ban
 
+    def sched_delete(self, context):
+        job_ctx = context.job.context
+        context.bot.delete_message(job_ctx[0], job_ctx[1])
+
     @run_async
     def receive_poll_answer(self, update, context):
         """Summarize a users poll vote"""
         answer = update.poll_answer
-        print(answer)
         poll_id = answer.poll_id
         selected_options = answer.option_ids
         
@@ -91,14 +97,18 @@ class ibCleanerBot:
             context.bot_data[poll_id]['count']['no'] += 1
 
         # Close poll after three participants voted
-        if context.bot_data[poll_id]['count']['yes'] == Translation.TOTAL_VOTE_COUNT or \
-           context.bot_data[poll_id]['count']['no'] == Translation.TOTAL_VOTE_COUNT:
+        print('foo ', self.DEFAULT_VOTE_COUNT)
+        if context.bot_data[poll_id]['count']['yes'] == self.DEFAULT_VOTE_COUNT or \
+           context.bot_data[poll_id]['count']['no'] == self.DEFAULT_VOTE_COUNT:
             context.bot.stop_poll(context.bot_data[poll_id]['chat'],
                                   context.bot_data[poll_id]['message_id'])
+            context.job_queue.run_once(self.sched_delete, self.DEFAULT_DELETE_TIMEOUT,
+                                       context=(context.bot_data[poll_id]['chat'],
+                                                context.bot_data[poll_id]['message_id']))
 
     @run_async
     def delete(self, update, context): 
-        if update.poll.options[0].voter_count == Translation.TOTAL_VOTE_COUNT:
+        if update.poll.options[0].voter_count == self.DEFAULT_VOTE_COUNT:
             context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
                                        message_id=context.bot_data[update.poll.id]['msg_to_delete'])
             if context.bot_data[update.poll.id]['ban']:
