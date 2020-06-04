@@ -67,7 +67,10 @@ class ibCleanerBot:
                                        reply_to_message_id=del_msg_id)
 
         context.bot_data[message.poll.id] = {}
-        context.bot_data[message.poll.id]['count'] = 0
+        context.bot_data[message.poll.id]['count'] = {
+            'yes': 0,
+            'no': 0
+        }
         context.bot_data[message.poll.id]['msg_to_delete'] = del_msg_id
         context.bot_data[message.poll.id]['chat'] = update.effective_chat.id
         context.bot_data[message.poll.id]['message_id'] = message.message_id
@@ -83,10 +86,13 @@ class ibCleanerBot:
         selected_options = answer.option_ids
         
         if selected_options[0] == 0:
-            context.bot_data[poll_id]['count'] += 1
+            context.bot_data[poll_id]['count']['yes'] += 1
+        elif selected_options[0] == 1:
+            context.bot_data[poll_id]['count']['no'] += 1
 
         # Close poll after three participants voted
-        if context.bot_data[poll_id]['count'] == Translation.TOTAL_VOTE_COUNT:
+        if context.bot_data[poll_id]['count']['yes'] == Translation.TOTAL_VOTE_COUNT or \
+           context.bot_data[poll_id]['count']['no'] == Translation.TOTAL_VOTE_COUNT:
             context.bot.stop_poll(context.bot_data[poll_id]['chat'],
                                   context.bot_data[poll_id]['message_id'])
 
@@ -95,7 +101,6 @@ class ibCleanerBot:
         if update.poll.options[0].voter_count == Translation.TOTAL_VOTE_COUNT:
             context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
                                        message_id=context.bot_data[update.poll.id]['msg_to_delete'])
-            print(context.bot_data)
             if context.bot_data[update.poll.id]['ban']:
                 context.bot.kick_chat_member(chat_id=context.bot_data[update.poll.id]['chat'],
                                              user_id=context.bot_data[update.poll.id]['sender_id'])
