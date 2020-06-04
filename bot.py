@@ -97,7 +97,6 @@ class ibCleanerBot:
             context.bot_data[poll_id]['count']['no'] += 1
 
         # Close poll after three participants voted
-        print('foo ', self.DEFAULT_VOTE_COUNT)
         if context.bot_data[poll_id]['count']['yes'] == self.DEFAULT_VOTE_COUNT or \
            context.bot_data[poll_id]['count']['no'] == self.DEFAULT_VOTE_COUNT:
             context.bot.stop_poll(context.bot_data[poll_id]['chat'],
