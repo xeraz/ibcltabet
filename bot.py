@@ -1,23 +1,20 @@
-import configparser
 import os
 import logging
 
 from telegram.ext import Updater, CommandHandler, MessageHandler, run_async
 from telegram.ext import  Filters, CallbackQueryHandler, PollAnswerHandler, PollHandler
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, Poll, ParseMode 
+from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, Poll, ParseMode
 from telegram.utils.helpers import mention_html
 from translation import Translation
 
 
 class ibCleanerBot:
-    def __init__(self, configfile):
-        config = configparser.ConfigParser()
-        config.read(configfile)
-        self.DEFAULT_VOTE_COUNT = int(config['PARAMS']['DEFAULT_VOTE_COUNT'])
-        self.DEFAULT_DELETE_TIMEOUT = int(config['PARAMS']['DEFAULT_DELETE_TIMEOUT'])
-        self.TOKEN = config['KEYS']['BOT_API']
+    def __init__(self, config):
+        self.DEFAULT_VOTE_COUNT = int(config.DEFAULT_VOTE_COUNT)
+        self.DEFAULT_DELETE_TIMEOUT = int(config.DEFAULT_DELETE_TIMEOUT)
+        self.TOKEN = config.bot_api
 
-    def initialize_bot(self):
+    def initialize_bot(self, is_env):
         updater = Updater(token=self.TOKEN, use_context=True)
         dispatcher = updater.dispatcher
         logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
@@ -30,7 +27,17 @@ class ibCleanerBot:
         dispatcher.add_handler(askdelete_ban_handler)
         dispatcher.add_handler(PollAnswerHandler(self.receive_poll_answer))
         dispatcher.add_handler(PollHandler(self.delete))
-        updater.start_polling()
+
+        if is_env:
+            updater.start_webhook(
+                listen="0.0.0.0",
+                # (c) https://t.me/c/1186975633/22915
+                port=self.config.port,
+                url_path=self.config.bot_api
+            )
+            updater.bot.set_webhook(url=self.config.url + self.config.bot_api)
+        else:
+            updater.start_polling()
 
     @run_async
     def start(self, update, context):
@@ -48,7 +55,7 @@ class ibCleanerBot:
         if not update.message.reply_to_message:
             return
         update.message.delete()
-        
+
         del_msg_id = update.message.reply_to_message.message_id
         del_msg_name = update.message.reply_to_message.from_user.first_name
         original_member = context.bot.get_chat_member(update.effective_chat.id,
@@ -61,6 +68,7 @@ class ibCleanerBot:
             question_string = Translation.QUESTION_STRING_BAN
 
         questions = [Translation.YES, Translation.NO]
+
         message = context.bot.sendPoll(update.effective_chat.id,
                                        question_string.format(del_msg_name),
                                        questions,
@@ -90,7 +98,7 @@ class ibCleanerBot:
         answer = update.poll_answer
         poll_id = answer.poll_id
         selected_options = answer.option_ids
-        
+
         if selected_options[0] == 0:
             context.bot_data[poll_id]['count']['yes'] += 1
         elif selected_options[0] == 1:
@@ -106,7 +114,7 @@ class ibCleanerBot:
                                                 context.bot_data[poll_id]['message_id']))
 
     @run_async
-    def delete(self, update, context): 
+    def delete(self, update, context):
         if update.poll.options[0].voter_count == self.DEFAULT_VOTE_COUNT:
             context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
                                        message_id=context.bot_data[update.poll.id]['msg_to_delete'])
@@ -115,9 +123,19 @@ class ibCleanerBot:
                                              user_id=context.bot_data[update.poll.id]['sender_id'])
         if update.poll.is_closed:
             print ("test closed")
-            return    
+            return
 
-       
+
 if __name__ == '__main__':
-    ibcBot = ibCleanerBot("config.ini")
-    ibcBot.initialize_bot()
+    # code to allow switching between
+    # ENV vars, and config.py
+    # incase of hosting in ephimeral filesystems
+
+    IS_ENV = bool(os.environ.get("IS_ENV", False))
+    if IS_ENV:
+        from sampleconfig import Config
+    else:
+        from config import Config
+
+    ibcBot = ibCleanerBot(Config)
+    ibcBot.initialize_bot(IS_ENV)

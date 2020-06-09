@@ -2,7 +2,7 @@ This is a simple bot to Delete User Messages based on Groupmembers Votes.
 
 # install
 
-copy sampleconfig.ini into config.ini and insert bot Token
+create a new config.py that extends sampleconfig.py and insert bot Token
 
 ```
 python3 -m venv ibcenv
