@@ -1,0 +1,7 @@
+{
+    "bot_welcome": "Hi I'm %{name}. I can delete messeges in your group based on users' poll\nJust send @%{username} as a reply to the message you want to delete",
+    "yes": "Yes",
+    "no": "No",
+    "question_string": "Shall I delete this message by %{name}?",
+    "question_string_ban": "Shall I ban %{name} and delete this message?"
+}
