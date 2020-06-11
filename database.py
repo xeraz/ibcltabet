@@ -71,7 +71,7 @@ def mod_or_make_chat(chat_id,
             SESSION.add(chat)
         SESSION.commit()
         SESSION.close()
-        return 'Success!'
+        return 'success'
     except:
         return str(Exception)
 
