@@ -14,4 +14,5 @@ class Config:
     #
     DEFAULT_VOTE_COUNT = int(os.environ.get("DEFAULT_VOTE_COUNT", "3"))
     DEFAULT_DELETE_TIMEOUT = int(os.environ.get("DEFAULT_DELETE_TIMEOUT", "60"))
+    DB_URI = os.environ.get("DB_URI", 'sqlite:///db.db')
 

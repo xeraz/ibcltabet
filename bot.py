@@ -1,11 +1,42 @@
 import os
 import logging
+import i18n
+import json
 
-from telegram.ext import Updater, CommandHandler, MessageHandler, run_async
-from telegram.ext import  Filters, CallbackQueryHandler, PollAnswerHandler, PollHandler
-from telegram import ReplyKeyboardMarkup, InlineKeyboardMarkup, InlineKeyboardButton, Poll, ParseMode
+from telegram.ext import (
+    Updater,
+    CommandHandler,
+    MessageHandler,
+    run_async,
+    Filters,
+    CallbackQueryHandler,
+    PollAnswerHandler,
+    PollHandler)
+from telegram import (
+    InlineKeyboardMarkup,
+    InlineKeyboardButton,
+    Poll,
+    ParseMode)
 from telegram.utils.helpers import mention_html
 from translation import Translation
+from database import mod_or_make_chat, get_chat
+
+
+i18n.load_path.append('locale')
+i18n.set('filename_format', '{locale}.{format}')
+i18n.set('skip_locale_root_data', True)
+i18n.set('fallback', 'en')
+
+
+def localize(func):
+    def inner(*args, **kwargs):
+        locale = ''
+        chat_data = get_chat(args[1].effective_chat.id)
+        if chat_data:
+            locale = chat_data.locale or ''
+        i18n.set('locale', locale)
+        func(*args, **kwargs)
+    return inner
 
 
 class ibCleanerBot:
@@ -17,16 +48,22 @@ class ibCleanerBot:
     def initialize_bot(self, is_env):
         updater = Updater(token=self.TOKEN, use_context=True)
         dispatcher = updater.dispatcher
+        self.foo = dispatcher
         logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                              level=logging.INFO)
         start_handler = CommandHandler('start', self.start)
         dispatcher.add_handler(start_handler)
-        askdelete_handler = MessageHandler(Filters.regex('^@' + updater.bot.username + '$'), self.askdelete)
-        askdelete_ban_handler = MessageHandler(Filters.regex('^@' + updater.bot.username + ' ban$'), self.askdelete_ban)
+        askdelete_handler = MessageHandler(
+            Filters.regex('^@' + updater.bot.username + '$'), self.askdelete)
+        askdelete_ban_handler = MessageHandler(
+            Filters.regex('^@' + updater.bot.username + ' ban$'), self.askdelete_ban)
+        set_handler = CommandHandler('settings', self.set_cmd)
         dispatcher.add_handler(askdelete_handler)
         dispatcher.add_handler(askdelete_ban_handler)
         dispatcher.add_handler(PollAnswerHandler(self.receive_poll_answer))
         dispatcher.add_handler(PollHandler(self.delete))
+        dispatcher.add_handler(set_handler)
+        dispatcher.add_handler(CallbackQueryHandler(self.query_func))
 
         if is_env:
             updater.start_webhook(
@@ -39,18 +76,155 @@ class ibCleanerBot:
         else:
             updater.start_polling()
 
-    @run_async
-    def start(self, update, context):
-        context.bot.send_message(chat_id=update.effective_chat.id, text=Translation.BOT_WELCOME)
+    @localize
+    def send_locale(self, update, context):
+        keyboard = []
+        count = 0
+        temp = []
+        files = os.listdir('locale')
+        for _file in files:
+            count += 1
+            with open(os.path.join('locale', _file), 'r') as f:
+                data = json.load(f)
+                temp.append(InlineKeyboardButton(
+                    f'{data["lang_info"]["name"]} {data["lang_info"]["icon"]}',
+                    callback_data='locale'+data['lang_info']['short']))
+            if count % 3 == 0:
+                keyboard.append(temp)
+                temp = []
+            elif count == len(files):
+                keyboard.append(temp)
+        keyboard.append([InlineKeyboardButton(i18n.t('back'), callback_data='back')])
+        context.bot.send_message(
+            update.effective_chat.id,
+            i18n.t('locale_menu'),
+            reply_markup=InlineKeyboardMarkup(keyboard))
+
+    @localize
+    def set_locale(self, update, context, locale:str):
+        res = mod_or_make_chat(update.effective_chat.id, locale=locale)
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
+
+    @localize
+    def send_vote_count(self, update, context):
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(x, callback_data='votes'+str(x)) for x in [1, 2, 3, 5, 10]],
+            [InlineKeyboardButton(i18n.t('back'), callback_data='back')]
+        ])
+        context.bot.send_message(update.effective_chat.id,
+                                 i18n.t('vote_menu'),
+                                 reply_markup=keyboard)
+
+    @localize
+    def set_vote_count(self, update, context, votes:int):
+        res = mod_or_make_chat(update.effective_chat.id, vote_count=votes)
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
+
+    @localize
+    def send_delete_timeout(self, update, context):
+        second = i18n.t('second') 
+        minute = i18n.t('minute') 
+        times = {
+            f"5 {second}": "5",
+            f"10 {second}": "10",
+            f"30 {second}": "30",
+            f"1 {minute}": "60",
+            f"2 {minute}": "120",
+            f"5 {minute}": "300",
+            f"10 {minute}": "600",
+            f"30 {minute}": "1800",
+            i18n.t('immediate'): "-1",
+            i18n.t('disable'): "-2"
+        }
+        keyboard = [[InlineKeyboardButton(x, callback_data='delete_timeout'+times[x])] \
+                    for x in times]
+        keyboard.append([InlineKeyboardButton(i18n.t('back'), callback_data='back')])
+        context.bot.send_message(update.effective_chat.id,
+                                 i18n.t('timeout_menu'),
+                                 reply_markup=InlineKeyboardMarkup(keyboard))
+
+    @localize
+    def set_delete_timeout(self, update, context, timeout:int):
+        res = mod_or_make_chat(update.effective_chat.id, delete_timeout=timeout)
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
 
     @run_async
-    def askdelete(self, update, context):
+    @localize
+    def query_func(self, update, context):
+        original_member = context.bot.get_chat_member(
+            update.effective_chat.id,
+            update.effective_user.id)
+        if original_member['status'] not in ('creator', 'administrator'):
+            context.bot.answer_callback_query(
+                callback_query_id=update.callback_query.id,
+                text=i18n.t('not_permitted'))
+            return
+
+        data = update.callback_query.data
+        if data == 'language':
+            self.send_locale(update, context)
+        elif data == 'vote_count':
+            self.send_vote_count(update, context)
+        elif data == 'delete_timeout':
+            self.send_delete_timeout(update, context)
+        elif 'locale' in data:
+            self.set_locale(update, context, data.replace('locale', ''))
+        elif 'votes' in data:
+            self.set_vote_count(update, context, data.replace('votes', ''))
+        elif 'delete_timeout' in data:
+            self.set_delete_timeout(update, context, data.replace('delete_timeout', ''))
+        else:
+            self.send_set_cmd(update, context)
+        update.callback_query.message.delete()
+ 
+    @localize
+    def send_set_cmd(self, update, context):
+        original_member = context.bot.get_chat_member(
+            update.effective_chat.id,
+            update.effective_user.id)
+        if original_member['status'] not in ('creator', 'administrator'):
+            return
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(i18n.t('language'), callback_data='language')],
+            [InlineKeyboardButton(i18n.t('vote_count'), callback_data='vote_count')],
+            [InlineKeyboardButton(i18n.t('delete_timeout'), callback_data='delete_timeout')]
+        ])
+        context.bot.send_message(update.effective_chat.id,
+                                 i18n.t('main_menu'),
+                                 reply_markup=keyboard)
+        update.effective_message.delete()
+
+    @run_async
+    def set_cmd(self, update, context):
+        self.send_set_cmd(update, context)
+
+    @run_async
+    @localize
+    def start(self, update, context):
+        context.bot.send_message(chat_id=update.effective_chat.id,
+                                 text=i18n.t('bot_welcome',
+                                             name=context.bot.first_name,
+                                             username=context.bot.username))
+
+    @run_async
+    def askdelete(self, update, context): 
         self.ask_func(update, context)
 
     @run_async
     def askdelete_ban(self, update, context):
         self.ask_func(update, context, ban=True)
 
+    @localize
     def ask_func(self, update, context, ban=False):
         if not update.message.reply_to_message:
             return
@@ -58,19 +232,20 @@ class ibCleanerBot:
 
         del_msg_id = update.message.reply_to_message.message_id
         del_msg_name = update.message.reply_to_message.from_user.first_name
-        original_member = context.bot.get_chat_member(update.effective_chat.id,
-                                                 update.message.reply_to_message.from_user.id)
+        original_member = context.bot.get_chat_member(
+            update.effective_chat.id,
+            update.message.reply_to_message.from_user.id)
         if original_member['status'] in ('creator', 'administrator'):
             return
 
-        question_string = Translation.QUESTION_STRING
+        question_string = i18n.t('question_string', name=del_msg_name)
         if ban:
-            question_string = Translation.QUESTION_STRING_BAN
+            question_string = i18n.t('question_string_ban', name=del_msg_name)
 
-        questions = [Translation.YES, Translation.NO]
+        questions = [i18n.t('yes'), i18n.t('no')]
 
         message = context.bot.sendPoll(update.effective_chat.id,
-                                       question_string.format(del_msg_name),
+                                       question_string,
                                        questions,
                                        is_anonymous=False,
                                        type='regular',
@@ -98,6 +273,13 @@ class ibCleanerBot:
         answer = update.poll_answer
         poll_id = answer.poll_id
         selected_options = answer.option_ids
+        
+        timeout = self.DEFAULT_DELETE_TIMEOUT
+        vote_count = self.DEFAULT_VOTE_COUNT
+        chat_data = get_chat(context.bot_data[poll_id]['chat'])
+        if chat_data:
+            timeout = chat_data.delete_timeout or self.DEFAULT_DELETE_TIMEOUT
+            vote_count = chat_data.vote_count or self.DEFAULT_VOTE_COUNT
 
         if selected_options[0] == 0:
             context.bot_data[poll_id]['count']['yes'] += 1
@@ -105,18 +287,24 @@ class ibCleanerBot:
             context.bot_data[poll_id]['count']['no'] += 1
 
         # Close poll after three participants voted
-        if context.bot_data[poll_id]['count']['yes'] == self.DEFAULT_VOTE_COUNT or \
-           context.bot_data[poll_id]['count']['no'] == self.DEFAULT_VOTE_COUNT:
+        if context.bot_data[poll_id]['count']['yes'] == vote_count or \
+           context.bot_data[poll_id]['count']['no'] == vote_count:
             context.bot.stop_poll(context.bot_data[poll_id]['chat'],
                                   context.bot_data[poll_id]['message_id'])
-            context.job_queue.run_once(self.sched_delete, self.DEFAULT_DELETE_TIMEOUT,
+            if timeout == -2:
+                return
+            context.job_queue.run_once(self.sched_delete, timeout,
                                        context=(context.bot_data[poll_id]['chat'],
                                                 context.bot_data[poll_id]['message_id']))
 
-
     @run_async
     def delete(self, update, context):
-        if update.poll.options[0].voter_count == self.DEFAULT_VOTE_COUNT:
+        vote_count = self.DEFAULT_VOTE_COUNT
+        chat_data = get_chat(context.bot_data[update.poll.id]['chat'])
+        if chat_data:
+            vote_count = chat_data.vote_count or self.DEFAULT_VOTE_COUNT
+
+        if update.poll.options[0].voter_count == vote_count:
             context.bot.delete_message(chat_id=context.bot_data[update.poll.id]['chat'],
                                        message_id=context.bot_data[update.poll.id]['msg_to_delete'])
             if context.bot_data[update.poll.id]['ban']:
