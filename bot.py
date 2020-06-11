@@ -94,6 +94,7 @@ class ibCleanerBot:
                 temp = []
             elif count == len(files):
                 keyboard.append(temp)
+        keyboard.append([InlineKeyboardButton(i18n.t('back'), callback_data='back')])
         context.bot.send_message(
             update.effective_chat.id,
             i18n.t('locale_menu'),
@@ -102,12 +103,16 @@ class ibCleanerBot:
     @localize
     def set_locale(self, update, context, locale:str):
         res = mod_or_make_chat(update.effective_chat.id, locale=locale)
-        context.bot.send_message(update.effective_chat.id, i18n.t(res))
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
 
     @localize
     def send_vote_count(self, update, context):
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(x, callback_data='votes'+str(x)) for x in [1, 2, 3, 5, 10]]
+            [InlineKeyboardButton(x, callback_data='votes'+str(x)) for x in [1, 2, 3, 5, 10]],
+            [InlineKeyboardButton(i18n.t('back'), callback_data='back')]
         ])
         context.bot.send_message(update.effective_chat.id,
                                  i18n.t('vote_menu'),
@@ -116,7 +121,10 @@ class ibCleanerBot:
     @localize
     def set_vote_count(self, update, context, votes:int):
         res = mod_or_make_chat(update.effective_chat.id, vote_count=votes)
-        context.bot.send_message(update.effective_chat.id, i18n.t(res))
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
 
     @localize
     def send_delete_timeout(self, update, context):
@@ -134,18 +142,20 @@ class ibCleanerBot:
             i18n.t('immediate'): "-1",
             i18n.t('disable'): "-2"
         }
-        keyboard = InlineKeyboardMarkup(
-            [[InlineKeyboardButton(x, callback_data='delete_timeout'+times[x])] \
-             for x in times]
-        )
+        keyboard = [[InlineKeyboardButton(x, callback_data='delete_timeout'+times[x])] \
+                    for x in times]
+        keyboard.append([InlineKeyboardButton(i18n.t('back'), callback_data='back')])
         context.bot.send_message(update.effective_chat.id,
                                  i18n.t('timeout_menu'),
-                                 reply_markup=keyboard)
+                                 reply_markup=InlineKeyboardMarkup(keyboard))
 
     @localize
     def set_delete_timeout(self, update, context, timeout:int):
         res = mod_or_make_chat(update.effective_chat.id, delete_timeout=timeout)
-        context.bot.send_message(update.effective_chat.id, i18n.t(res))
+        context.bot.answer_callback_query(
+            callback_query_id=update.callback_query.id,
+            text=i18n.t(res),
+            show_alert=True)
 
     @run_async
     @localize
@@ -172,11 +182,12 @@ class ibCleanerBot:
             self.set_vote_count(update, context, data.replace('votes', ''))
         elif 'delete_timeout' in data:
             self.set_delete_timeout(update, context, data.replace('delete_timeout', ''))
+        else:
+            self.send_set_cmd(update, context)
         update.callback_query.message.delete()
-
-    @run_async
+ 
     @localize
-    def set_cmd(self, update, context):
+    def send_set_cmd(self, update, context):
         original_member = context.bot.get_chat_member(
             update.effective_chat.id,
             update.effective_user.id)
@@ -191,7 +202,11 @@ class ibCleanerBot:
         context.bot.send_message(update.effective_chat.id,
                                  i18n.t('main_menu'),
                                  reply_markup=keyboard)
-        update.message.delete()
+        update.effective_message.delete()
+
+    @run_async
+    def set_cmd(self, update, context):
+        self.send_set_cmd(update, context)
 
     @run_async
     @localize
